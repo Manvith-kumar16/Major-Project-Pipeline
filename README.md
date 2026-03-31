@@ -428,30 +428,105 @@ Objective: Domain-specific adaptation through selective unfreezing
 In this framework, **each dataset represents a separate federated client** — simulating the real-world scenario where hospitals own their data locally and cannot transfer it.
 
 ```
-════════════════════════════════════════════════════════════════════
-                 FEDERATED LEARNING ARCHITECTURE
-════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
+                    SYSTEM ARCHITECTURE OVERVIEW 
+═══════════════════════════════════════════════════════════════════════════════
 
-               ┌──────────────────────────────┐
-               │      CENTRAL SERVER          │
-               │   (Model Aggregator)         │
-               │   FedAvg / FedProx           │
-               └──────┬───────────┬───────────┘
-                      │  Weights  │
-             ┌────────┘           └─────────┐
-             │         ▲         ▲          │
-             │         │ weights │          │
-             ▼         │         │          ▼
-  ┌───────────────┐    │    ┌────────────────────┐    ┌──────────────┐
-  │  Client 1     │    │    │     Client 2       │    │  Client 3    │
-  │  CheXpert     │────┘    │  NIH ChestX-ray14  │────│  VinDr-CXR   │
-  │  (Stanford)   │         │  (NIH, USA)        │    │  (Vietnam)   │
-  │  ~224K imgs   │         │  ~112K imgs        │    │  ~18K imgs   │
-  └───────────────┘         └────────────────────┘    └──────────────┘
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 1: DATA INGESTION & PREPROCESSING                            │
+  │                                                                     │
+  │  CheXpert ──┐                                                       │
+  │  NIH       ─┼──► Decode → Resize (224×224) → Normalize (ImageNet)   │
+  │  VinDr     ─┘         ▼                                             │
+  │                  Label Harmonization (Unified Multi-label Space)    │
+  │                                                                     │
+  │  🔹 Handles domain differences (resolution, format, label noise)   │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 2: MODEL TRAINING (CENTRALIZED BASELINE)                     │
+  │                                                                     │
+  │  DenseNet121 (ImageNet Pretrained Backbone)                         │
+  │       │                                                             │
+  │       ├── Transfer Learning ──► Freeze backbone, train classifier   │
+  │       └── Fine-Tuning       ──► Unfreeze deeper layers              │
+  │                                                                     │
+  │  🔹 Learns strong initial representation from CheXper              │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 3: ATTENTION AUGMENTATION (PROPOSED MODEL)                   │
+  │                                                                     │
+  │  DenseNet121 + SE Attention Blocks                                  │
+  │                                                                     │
+  │  SE Block:                                                          │
+  │  Global Pool → FC → ReLU → FC → Sigmoid → Channel Recalibration     │
+  │                                                                     │
+  │  🔹 Focuses on disease-relevant regions                            │
+  │  🔹 Suppresses irrelevant features                                 │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 4: CROSS-DATASET GENERALIZATION TESTING                      │
+  │                                                                     │
+  │  CheXpert-trained Model ──► NIH Dataset                             │
+  │  CheXpert-trained Model ──► VinDr Dataset                           │
+  │                                                                     │
+  │  🔹 Measures domain shift impact                                   │
+  │  🔹 Evaluates real-world robustness                                │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 5: FEDERATED LEARNING FRAMEWORK                              │
+  │                                                                     │
+  │   Client 1 (CheXpert) ─┐                                            │
+  │   Client 2 (NIH)       ─┼──► Aggregation Server                     │
+  │   Client 3 (VinDr)    ─┘      (FedAvg / FedProx)                    │
+  │                                                                     │
+  │   Local Training → Upload Weights → Global Aggregation              │
+  │                                                                     │
+  │  🔹 Privacy Preserved (No Data Sharing)                            │
+  │  🔹 Handles Non-IID Data (FedProx Advantage)                       │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 6: TARGET DOMAIN FINE-TUNING                                 │
+  │                                                                     │
+  │  Global FL Model ──► Fine-tune on small VinDr subset                │
+  │                                                                     │
+  │  🔹 Improves domain adaptation                                     │
+  │  🔹 Simulates real-world deployment                                │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 7: EXPLAINABLE AI (XAI)                                      │
+  │                                                                     │
+  │  Grad-CAM → Heatmap Generation → Overlay on X-ray                   │
+  │                                                                     │
+  │  🔹 Visual explanation of predictions                              │
+  │  🔹 Validated using VinDr annotations                              │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  STAGE 8: EVALUATION & ANALYSIS                                     │
+  │                                                                     │
+  │  Metrics:                                                           │
+  │   • AUC-ROC   • Precision   • Recall   • F1-score                   │
+  │   • Confusion Matrix   • ROC Curves                                 │
+  │   • Statistical Testing (t-test, std dev)                           │
+  │   • Communication Cost (Federated Learning)                         │
+  │                                                                     │
+  │  🔹 Quantitative + Statistical validation                          │
+  └─────────────────────────────────────────────────────────────────────┘
 
-  KEY PRINCIPLE: Raw X-ray data NEVER leaves the client.
-  Only model weights (gradients) are transmitted.
-════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
 ```
 
 ---
@@ -1085,5 +1160,3 @@ tqdm>=4.65.0
 opencv-python>=4.8.0
 scipy>=1.11.0
 ```
-
----
