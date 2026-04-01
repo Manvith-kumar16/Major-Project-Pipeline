@@ -1,8 +1,7 @@
 
 <div align="center">
 
-# 🩻 Attention-Driven Federated Learning Framework
-## for Robust and Explainable Chest X-ray Disease Classification
+# 🩻 Attention-Enhanced Federated Learning for Robust Cross-Dataset Generalization and Explainable Chest X-ray Disease Classification
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
